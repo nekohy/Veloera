@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"io"
 	"net/http"
-	"strings"
 	"veloera/dto"
 	"veloera/relay/channel"
 	relaycommon "veloera/relay/common"
@@ -14,8 +13,7 @@ import (
 )
 
 const (
-	RequestModeCompletion = 1
-	RequestModeMessage    = 2
+	RequestModeMessage = 1
 )
 
 type Adaptor struct {
@@ -37,19 +35,11 @@ func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInf
 }
 
 func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
-	if strings.HasPrefix(info.UpstreamModelName, "claude-2") || strings.HasPrefix(info.UpstreamModelName, "claude-instant") {
-		a.RequestMode = RequestModeCompletion
-	} else {
-		a.RequestMode = RequestModeMessage
-	}
+	a.RequestMode = RequestModeMessage
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-	if a.RequestMode == RequestModeMessage {
-		return fmt.Sprintf("%s/v1/messages", info.BaseUrl), nil
-	} else {
-		return fmt.Sprintf("%s/v1/complete", info.BaseUrl), nil
-	}
+	return fmt.Sprintf("%s/v1/messages", info.BaseUrl), nil
 }
 
 func (a *Adaptor) SetupRequestHeader(c *gin.Context, req *http.Header, info *relaycommon.RelayInfo) error {
@@ -68,11 +58,7 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	if request == nil {
 		return nil, errors.New("request is nil")
 	}
-	if a.RequestMode == RequestModeCompletion {
-		return RequestOpenAI2ClaudeComplete(*request), nil
-	} else {
-		return RequestOpenAI2ClaudeMessage(*request)
-	}
+	return RequestOpenAI2ClaudeMessage(*request)
 }
 
 func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {

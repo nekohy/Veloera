@@ -12,8 +12,7 @@ import (
 )
 
 const (
-	RequestModeCompletion = 1
-	RequestModeMessage    = 2
+	RequestModeMessage = 1
 )
 
 type Adaptor struct {

@@ -308,68 +308,60 @@ func StreamResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse
 		}
 	}
 	var choice dto.ChatCompletionsStreamResponseChoice
-	if reqMode == RequestModeCompletion {
-		choice.Delta.SetContentString(claudeResponse.Completion)
-		finishReason := stopReasonClaude2OpenAI(claudeResponse.StopReason)
-		if finishReason != "null" {
-			choice.FinishReason = &finishReason
-		}
-	} else {
-		if claudeResponse.Type == "message_start" {
-			response.Id = claudeResponse.Message.Id
-			response.Model = claudeResponse.Message.Model
-			//claudeUsage = &claudeResponse.Message.Usage
-			choice.Delta.SetContentString("")
-			choice.Delta.Role = "assistant"
-		} else if claudeResponse.Type == "content_block_start" {
-			if claudeResponse.ContentBlock != nil {
-				//choice.Delta.SetContentString(claudeResponse.ContentBlock.Text)
-				if claudeResponse.ContentBlock.Type == "tool_use" {
-					tools = append(tools, dto.ToolCallResponse{
-						Index: common.GetPointer(fcIdx),
-						ID:    claudeResponse.ContentBlock.Id,
-						Type:  "function",
-						Function: dto.FunctionResponse{
-							Name:      claudeResponse.ContentBlock.Name,
-							Arguments: "",
-						},
-					})
-				}
-			} else {
-				return nil
+	if claudeResponse.Type == "message_start" {
+		response.Id = claudeResponse.Message.Id
+		response.Model = claudeResponse.Message.Model
+		//claudeUsage = &claudeResponse.Message.Usage
+		choice.Delta.SetContentString("")
+		choice.Delta.Role = "assistant"
+	} else if claudeResponse.Type == "content_block_start" {
+		if claudeResponse.ContentBlock != nil {
+			//choice.Delta.SetContentString(claudeResponse.ContentBlock.Text)
+			if claudeResponse.ContentBlock.Type == "tool_use" {
+				tools = append(tools, dto.ToolCallResponse{
+					Index: common.GetPointer(fcIdx),
+					ID:    claudeResponse.ContentBlock.Id,
+					Type:  "function",
+					Function: dto.FunctionResponse{
+						Name:      claudeResponse.ContentBlock.Name,
+						Arguments: "",
+					},
+				})
 			}
-		} else if claudeResponse.Type == "content_block_delta" {
-			if claudeResponse.Delta != nil {
-				choice.Delta.Content = claudeResponse.Delta.Text
-				switch claudeResponse.Delta.Type {
-				case "input_json_delta":
-					tools = append(tools, dto.ToolCallResponse{
-						Type:  "function",
-						Index: common.GetPointer(fcIdx),
-						Function: dto.FunctionResponse{
-							Arguments: *claudeResponse.Delta.PartialJson,
-						},
-					})
-				case "signature_delta":
-					// 加密的不处理
-					signatureContent := "\n"
-					choice.Delta.ReasoningContent = &signatureContent
-				case "thinking_delta":
-					thinkingContent := claudeResponse.Delta.Thinking
-					choice.Delta.ReasoningContent = &thinkingContent
-				}
-			}
-		} else if claudeResponse.Type == "message_delta" {
-			finishReason := stopReasonClaude2OpenAI(*claudeResponse.Delta.StopReason)
-			if finishReason != "null" {
-				choice.FinishReason = &finishReason
-			}
-			//claudeUsage = &claudeResponse.Usage
-		} else if claudeResponse.Type == "message_stop" {
-			return nil
 		} else {
 			return nil
 		}
+	} else if claudeResponse.Type == "content_block_delta" {
+		if claudeResponse.Delta != nil {
+			choice.Delta.Content = claudeResponse.Delta.Text
+			switch claudeResponse.Delta.Type {
+			case "input_json_delta":
+				tools = append(tools, dto.ToolCallResponse{
+					Type:  "function",
+					Index: common.GetPointer(fcIdx),
+					Function: dto.FunctionResponse{
+						Arguments: *claudeResponse.Delta.PartialJson,
+					},
+				})
+			case "signature_delta":
+				// 加密的不处理
+				signatureContent := "\n"
+				choice.Delta.ReasoningContent = &signatureContent
+			case "thinking_delta":
+				thinkingContent := claudeResponse.Delta.Thinking
+				choice.Delta.ReasoningContent = &thinkingContent
+			}
+		}
+	} else if claudeResponse.Type == "message_delta" {
+		finishReason := stopReasonClaude2OpenAI(*claudeResponse.Delta.StopReason)
+		if finishReason != "null" {
+			choice.FinishReason = &finishReason
+		}
+		//claudeUsage = &claudeResponse.Usage
+	} else if claudeResponse.Type == "message_stop" {
+		return nil
+	} else {
+		return nil
 	}
 	if len(tools) > 0 {
 		choice.Delta.Content = nil // compatible with other OpenAI derivative applications, like LobeOpenAICompatibleFactory ...
@@ -395,39 +387,24 @@ func ResponseClaude2OpenAI(reqMode int, claudeResponse *dto.ClaudeResponse) *dto
 	}
 	tools := make([]dto.ToolCallResponse, 0)
 	thinkingContent := ""
-
-	if reqMode == RequestModeCompletion {
-		content, _ := json.Marshal(strings.TrimPrefix(claudeResponse.Completion, " "))
-		choice := dto.OpenAITextResponseChoice{
-			Index: 0,
-			Message: dto.Message{
-				Role:    "assistant",
-				Content: content,
-				Name:    nil,
-			},
-			FinishReason: stopReasonClaude2OpenAI(claudeResponse.StopReason),
-		}
-		choices = append(choices, choice)
-	} else {
-		fullTextResponse.Id = claudeResponse.Id
-		for _, message := range claudeResponse.Content {
-			switch message.Type {
-			case "tool_use":
-				args, _ := json.Marshal(message.Input)
-				tools = append(tools, dto.ToolCallResponse{
-					ID:   message.Id,
-					Type: "function", // compatible with other OpenAI derivative applications
-					Function: dto.FunctionResponse{
-						Name:      message.Name,
-						Arguments: string(args),
-					},
-				})
-			case "thinking":
-				// 加密的不管， 只输出明文的推理过程
-				thinkingContent = message.Thinking
-			case "text":
-				responseText = message.GetText()
-			}
+	fullTextResponse.Id = claudeResponse.Id
+	for _, message := range claudeResponse.Content {
+		switch message.Type {
+		case "tool_use":
+			args, _ := json.Marshal(message.Input)
+			tools = append(tools, dto.ToolCallResponse{
+				ID:   message.Id,
+				Type: "function", // compatible with other OpenAI derivative applications
+				Function: dto.FunctionResponse{
+					Name:      message.Name,
+					Arguments: string(args),
+				},
+			})
+		case "thinking":
+			// 加密的不管， 只输出明文的推理过程
+			thinkingContent = message.Thinking
+		case "text":
+			responseText = message.GetText()
 		}
 	}
 	choice := dto.OpenAITextResponseChoice{
@@ -460,28 +437,24 @@ type ClaudeResponseInfo struct {
 }
 
 func FormatClaudeResponseInfo(requestMode int, claudeResponse *dto.ClaudeResponse, oaiResponse *dto.ChatCompletionsStreamResponse, claudeInfo *ClaudeResponseInfo) bool {
-	if requestMode == RequestModeCompletion {
-		claudeInfo.ResponseText.WriteString(claudeResponse.Completion)
-	} else {
-		if claudeResponse.Type == "message_start" {
-			// message_start, 获取usage
-			claudeInfo.ResponseId = claudeResponse.Message.Id
-			claudeInfo.Model = claudeResponse.Message.Model
-			claudeInfo.Usage.PromptTokens = claudeResponse.Message.Usage.InputTokens
-		} else if claudeResponse.Type == "content_block_delta" {
-			if claudeResponse.Delta.Text != nil {
-				claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Text)
-			}
-		} else if claudeResponse.Type == "message_delta" {
-			claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
-			if claudeResponse.Usage.InputTokens > 0 {
-				claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
-			}
-			claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeResponse.Usage.OutputTokens
-		} else if claudeResponse.Type == "content_block_start" {
-		} else {
-			return false
+	if claudeResponse.Type == "message_start" {
+		// message_start, 获取usage
+		claudeInfo.ResponseId = claudeResponse.Message.Id
+		claudeInfo.Model = claudeResponse.Message.Model
+		claudeInfo.Usage.PromptTokens = claudeResponse.Message.Usage.InputTokens
+	} else if claudeResponse.Type == "content_block_delta" {
+		if claudeResponse.Delta.Text != nil {
+			claudeInfo.ResponseText.WriteString(*claudeResponse.Delta.Text)
 		}
+	} else if claudeResponse.Type == "message_delta" {
+		claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
+		if claudeResponse.Usage.InputTokens > 0 {
+			claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
+		}
+		claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeResponse.Usage.OutputTokens
+	} else if claudeResponse.Type == "content_block_start" {
+	} else {
+		return false
 	}
 	if oaiResponse != nil {
 		oaiResponse.Id = claudeInfo.ResponseId
@@ -509,26 +482,22 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 		}
 	}
 	if info.RelayFormat == relaycommon.RelayFormatClaude {
-		if requestMode == RequestModeCompletion {
-			claudeInfo.ResponseText.WriteString(claudeResponse.Completion)
-		} else {
-			if claudeResponse.Type == "message_start" {
-				// message_start, 获取usage
-				info.UpstreamModelName = claudeResponse.Message.Model
-				claudeInfo.Usage.PromptTokens = claudeResponse.Message.Usage.InputTokens
-				claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Message.Usage.CacheReadInputTokens
-				claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Message.Usage.CacheCreationInputTokens
-				claudeInfo.Usage.CompletionTokens = claudeResponse.Message.Usage.OutputTokens
-			} else if claudeResponse.Type == "content_block_delta" {
-				claudeInfo.ResponseText.WriteString(claudeResponse.Delta.GetText())
-			} else if claudeResponse.Type == "message_delta" {
-				if claudeResponse.Usage.InputTokens > 0 {
-					// 不叠加，只取最新的
-					claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
-				}
-				claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
-				claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
+		if claudeResponse.Type == "message_start" {
+			// message_start, 获取usage
+			info.UpstreamModelName = claudeResponse.Message.Model
+			claudeInfo.Usage.PromptTokens = claudeResponse.Message.Usage.InputTokens
+			claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Message.Usage.CacheReadInputTokens
+			claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Message.Usage.CacheCreationInputTokens
+			claudeInfo.Usage.CompletionTokens = claudeResponse.Message.Usage.OutputTokens
+		} else if claudeResponse.Type == "content_block_delta" {
+			claudeInfo.ResponseText.WriteString(claudeResponse.Delta.GetText())
+		} else if claudeResponse.Type == "message_delta" {
+			if claudeResponse.Usage.InputTokens > 0 {
+				// 不叠加，只取最新的
+				claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
 			}
+			claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
+			claudeInfo.Usage.TotalTokens = claudeInfo.Usage.PromptTokens + claudeInfo.Usage.CompletionTokens
 		}
 		helper.ClaudeChunkData(c, claudeResponse, data)
 	} else if info.RelayFormat == relaycommon.RelayFormatOpenAI {
@@ -548,27 +517,19 @@ func HandleStreamResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 
 func HandleStreamFinalResponse(c *gin.Context, info *relaycommon.RelayInfo, claudeInfo *ClaudeResponseInfo, requestMode int) {
 	if info.RelayFormat == relaycommon.RelayFormatClaude {
-		if requestMode == RequestModeCompletion {
-			claudeInfo.Usage, _ = service.ResponseText2Usage(claudeInfo.ResponseText.String(), info.UpstreamModelName, info.PromptTokens)
-		} else {
-			// 说明流模式建立失败，可能为官方出错
-			if claudeInfo.Usage.PromptTokens == 0 {
-				//usage.PromptTokens = info.PromptTokens
-			}
-			if claudeInfo.Usage.CompletionTokens == 0 {
-				claudeInfo.Usage, _ = service.ResponseText2Usage(claudeInfo.ResponseText.String(), info.UpstreamModelName, claudeInfo.Usage.PromptTokens)
-			}
+		// 说明流模式建立失败，可能为官方出错
+		if claudeInfo.Usage.PromptTokens == 0 {
+			//usage.PromptTokens = info.PromptTokens
+		}
+		if claudeInfo.Usage.CompletionTokens == 0 {
+			claudeInfo.Usage, _ = service.ResponseText2Usage(claudeInfo.ResponseText.String(), info.UpstreamModelName, claudeInfo.Usage.PromptTokens)
 		}
 	} else if info.RelayFormat == relaycommon.RelayFormatOpenAI {
-		if requestMode == RequestModeCompletion {
-			claudeInfo.Usage, _ = service.ResponseText2Usage(claudeInfo.ResponseText.String(), info.UpstreamModelName, info.PromptTokens)
-		} else {
-			if claudeInfo.Usage.PromptTokens == 0 {
-				//上游出错
-			}
-			if claudeInfo.Usage.CompletionTokens == 0 {
-				claudeInfo.Usage, _ = service.ResponseText2Usage(claudeInfo.ResponseText.String(), info.UpstreamModelName, claudeInfo.Usage.PromptTokens)
-			}
+		if claudeInfo.Usage.PromptTokens == 0 {
+			//上游出错
+		}
+		if claudeInfo.Usage.CompletionTokens == 0 {
+			claudeInfo.Usage, _ = service.ResponseText2Usage(claudeInfo.ResponseText.String(), info.UpstreamModelName, claudeInfo.Usage.PromptTokens)
 		}
 		if info.ShouldIncludeUsage {
 			response := helper.GenerateFinalUsageResponse(claudeInfo.ResponseId, claudeInfo.Created, info.UpstreamModelName, *claudeInfo.Usage)
@@ -621,21 +582,11 @@ func HandleClaudeResponseData(c *gin.Context, info *relaycommon.RelayInfo, claud
 			StatusCode: http.StatusInternalServerError,
 		}
 	}
-	if requestMode == RequestModeCompletion {
-		completionTokens, err := service.CountTextToken(claudeResponse.Completion, info.OriginModelName)
-		if err != nil {
-			return service.OpenAIErrorWrapper(err, "count_token_text_failed", http.StatusInternalServerError)
-		}
-		claudeInfo.Usage.PromptTokens = info.PromptTokens
-		claudeInfo.Usage.CompletionTokens = completionTokens
-		claudeInfo.Usage.TotalTokens = info.PromptTokens + completionTokens
-	} else {
-		claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
-		claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
-		claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens
-		claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
-		claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
-	}
+	claudeInfo.Usage.PromptTokens = claudeResponse.Usage.InputTokens
+	claudeInfo.Usage.CompletionTokens = claudeResponse.Usage.OutputTokens
+	claudeInfo.Usage.TotalTokens = claudeResponse.Usage.InputTokens + claudeResponse.Usage.OutputTokens
+	claudeInfo.Usage.PromptTokensDetails.CachedTokens = claudeResponse.Usage.CacheReadInputTokens
+	claudeInfo.Usage.PromptTokensDetails.CachedCreationTokens = claudeResponse.Usage.CacheCreationInputTokens
 	var responseData []byte
 	switch info.RelayFormat {
 	case relaycommon.RelayFormatOpenAI:
