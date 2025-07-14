@@ -1,3 +1,21 @@
+/*
+Copyright (c) 2025 Tethys Plex
+
+This file is part of Veloera.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+*/
 import React, { useContext, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
@@ -109,9 +127,15 @@ const LogsTable = () => {
             {t('签到')} {/* 前端显示的文字 */}
           </Tag>
         );
+      case 6:
+        return (
+          <Tag color='red' size='large'>
+            {t('错误')}
+          </Tag>
+        );
       default:
         return (
-          <Tag color='black' size='large'>
+          <Tag color='grey' size='large'>
             {t('未知')}
           </Tag>
         );
@@ -379,7 +403,7 @@ const LogsTable = () => {
       className: isAdmin() ? 'tableShow' : 'tableHiddle',
       render: (text, record, index) => {
         return isAdminUser ? (
-          record.type === 0 || record.type === 2 ? (
+          record.type === 0 || record.type === 2 || record.type === 6 ? (
             <div>
               {
                 <Tag
@@ -430,7 +454,7 @@ const LogsTable = () => {
       title: t('令牌'),
       dataIndex: 'token_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 ? (
+        return record.type === 0 || record.type === 2 || record.type === 6 ? (
           <div>
             <Tag
               color='grey'
@@ -454,7 +478,7 @@ const LogsTable = () => {
       title: t('分组'),
       dataIndex: 'group',
       render: (text, record, index) => {
-        if (record.type === 0 || record.type === 2) {
+        if (record.type === 0 || record.type === 2 || record.type === 6) {
           if (record.group) {
             return <>{renderGroup(record.group)}</>;
           } else {
@@ -494,7 +518,7 @@ const LogsTable = () => {
       title: t('模型'),
       dataIndex: 'model_name',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 ? (
+        return record.type === 0 || record.type === 2 || record.type === 6 ? (
           <>{renderModelName(record)}</>
         ) : (
           <></>
@@ -534,7 +558,7 @@ const LogsTable = () => {
       title: t('提示'),
       dataIndex: 'prompt_tokens',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 ? (
+        return record.type === 0 || record.type === 2 || record.type === 6 ? (
           <>{<span> {text} </span>}</>
         ) : (
           <></>
@@ -547,7 +571,7 @@ const LogsTable = () => {
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
         return parseInt(text) > 0 &&
-          (record.type === 0 || record.type === 2) ? (
+          (record.type === 0 || record.type === 2 || record.type === 6) ? (
           <>{<span> {text} </span>}</>
         ) : (
           <></>
@@ -559,7 +583,7 @@ const LogsTable = () => {
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        return record.type === 0 || record.type === 2 ? (
+        return record.type === 0 || record.type === 2 || record.type === 6 ? (
           <>{renderQuota(text, 6)}</>
         ) : (
           <></>
@@ -1019,6 +1043,52 @@ const LogsTable = () => {
           });
         }
       }
+      
+      // 添加错误详细信息
+      if (logs[i].type === 6) { // 错误类型
+        if (other?.error_type) {
+          expandDataLocal.push({
+            key: t('错误类型'),
+            value: other.error_type,
+          });
+        }
+        if (other?.error_code) {
+          expandDataLocal.push({
+            key: t('错误代码'),
+            value: other.error_code,
+          });
+        }
+        if (other?.status_code) {
+          expandDataLocal.push({
+            key: t('状态码'),
+            value: other.status_code,
+          });
+        }
+        if (other?.channel_name) {
+          expandDataLocal.push({
+            key: t('错误渠道'),
+            value: `${other.channel_id} - ${other.channel_name}`,
+          });
+        }
+        expandDataLocal.push({
+          key: t('错误详情'),
+          value: (
+            <Paragraph
+              ellipsis={{
+                rows: 6,
+                expandable: true,
+                collapsible: true,
+                collapseText: t('收起'),
+                expandText: t('展开'),
+              }}
+              style={{ maxWidth: '100%', whiteSpace: 'pre-wrap' }}
+            >
+              {logs[i].content}
+            </Paragraph>
+          ),
+        });
+      }
+      
       // 添加上下文、输入和输出内容
       if (logs[i].type === 2) { // 消费类型
         let other = getLogOther(logs[i].other);
@@ -1466,6 +1536,7 @@ const LogsTable = () => {
             <Select.Option value='3'>{t('管理')}</Select.Option>
             <Select.Option value='4'>{t('系统')}</Select.Option>
             <Select.Option value='5'>{t('签到')}</Select.Option> {/* 添加签到选项 */}
+            <Select.Option value='6'>{t('错误')}</Select.Option>
           </Select>
           <Button
             theme='light'

@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package model
 
 import (
@@ -43,6 +59,8 @@ func InitOptionMap() {
 	common.OptionMap["AutomaticDisableChannelEnabled"] = strconv.FormatBool(common.AutomaticDisableChannelEnabled)
 	common.OptionMap["AutomaticEnableChannelEnabled"] = strconv.FormatBool(common.AutomaticEnableChannelEnabled)
 	common.OptionMap["LogConsumeEnabled"] = strconv.FormatBool(common.LogConsumeEnabled)
+	common.OptionMap["LogChatContentEnabled"] = strconv.FormatBool(common.LogChatContentEnabled)
+	common.OptionMap["LogErrorEnabled"] = strconv.FormatBool(common.LogErrorEnabled)
 	common.OptionMap["CheckInEnabled"] = strconv.FormatBool(common.CheckInEnabled)
 	common.OptionMap["CheckInQuota"] = strconv.Itoa(common.CheckInQuota)
 	common.OptionMap["CheckInMaxQuota"] = strconv.Itoa(common.CheckInMaxQuota)
@@ -122,6 +140,8 @@ func InitOptionMap() {
 	common.OptionMap["ModelRequestRateLimitEnabled"] = strconv.FormatBool(setting.ModelRequestRateLimitEnabled)
 	common.OptionMap["CheckSensitiveOnPromptEnabled"] = strconv.FormatBool(setting.CheckSensitiveOnPromptEnabled)
 	common.OptionMap["StopOnSensitiveEnabled"] = strconv.FormatBool(setting.StopOnSensitiveEnabled)
+	common.OptionMap["SafeCheckExemptEnabled"] = strconv.FormatBool(setting.SafeCheckExemptEnabled)
+	common.OptionMap["SafeCheckExemptGroup"] = setting.SafeCheckExemptGroup
 	common.OptionMap["SensitiveWords"] = setting.SensitiveWordsToString()
 	common.OptionMap["StreamCacheQueueLength"] = strconv.Itoa(setting.StreamCacheQueueLength)
 	common.OptionMap["AutomaticDisableKeywords"] = operation_setting.AutomaticDisableKeywordsToString()
@@ -225,6 +245,10 @@ func updateOptionMap(key string, value string) (err error) {
 			common.AutomaticEnableChannelEnabled = boolValue
 		case "LogConsumeEnabled":
 			common.LogConsumeEnabled = boolValue
+		case "LogChatContentEnabled":
+			common.LogChatContentEnabled = boolValue
+		case "LogErrorEnabled":
+			common.LogErrorEnabled = boolValue
 		case "CheckInEnabled":
 			common.CheckInEnabled = boolValue
 		case "CheckInQuota":
@@ -267,6 +291,8 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.ModelRequestRateLimitEnabled = boolValue
 		case "StopOnSensitiveEnabled":
 			setting.StopOnSensitiveEnabled = boolValue
+		case "SafeCheckExemptEnabled":
+			setting.SafeCheckExemptEnabled = boolValue
 		case "SMTPSSLEnabled":
 			common.SMTPSSLEnabled = boolValue
 		}
@@ -381,6 +407,8 @@ func updateOptionMap(key string, value string) (err error) {
 		common.QuotaPerUnit, _ = strconv.ParseFloat(value, 64)
 	case "SensitiveWords":
 		setting.SensitiveWordsFromString(value)
+	case "SafeCheckExemptGroup":
+		setting.SafeCheckExemptGroup = value
 	case "AutomaticDisableKeywords":
 		operation_setting.AutomaticDisableKeywordsFromString(value)
 	case "StreamCacheQueueLength":

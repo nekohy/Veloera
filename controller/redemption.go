@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package controller
 
 import (
@@ -115,6 +131,15 @@ func AddRedemption(c *gin.Context) {
 		return
 	}
 
+	// 验证时间范围
+	if redemption.ValidFrom > 0 && redemption.ValidUntil > 0 && redemption.ValidFrom >= redemption.ValidUntil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "生效时间必须早于过期时间",
+		})
+		return
+	}
+
 	var keys []string
 	if redemption.Key != "" {
 		// If key is provided, use it and check for duplicates
@@ -142,6 +167,8 @@ func AddRedemption(c *gin.Context) {
 			Quota:       redemption.Quota,
 			IsGift:      redemption.IsGift,
 			MaxUses:     redemption.MaxUses,
+			ValidFrom:   redemption.ValidFrom,
+			ValidUntil:  redemption.ValidUntil,
 		}
 		err = cleanRedemption.Insert()
 		if err != nil {
@@ -180,6 +207,8 @@ func AddRedemption(c *gin.Context) {
 				Quota:       redemption.Quota,
 				IsGift:      redemption.IsGift,
 				MaxUses:     redemption.MaxUses,
+				ValidFrom:   redemption.ValidFrom,
+				ValidUntil:  redemption.ValidUntil,
 			}
 			err = cleanRedemption.Insert()
 			if err != nil {
@@ -244,6 +273,8 @@ func UpdateRedemption(c *gin.Context) {
 		// If you add more fields, please also update redemption.Update()
 		cleanRedemption.Name = redemption.Name
 		cleanRedemption.Quota = redemption.Quota
+		cleanRedemption.ValidFrom = redemption.ValidFrom
+		cleanRedemption.ValidUntil = redemption.ValidUntil
 	}
 	err = cleanRedemption.Update()
 	if err != nil {

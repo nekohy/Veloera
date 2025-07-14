@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package relay
 
 import (
@@ -14,6 +30,8 @@ import (
 	"veloera/constant"
 	"veloera/dto"
 	"veloera/model"
+	gemini "veloera/relay/channel/gemini"
+	openai "veloera/relay/channel/openai"
 	relaycommon "veloera/relay/common"
 	relayconstant "veloera/relay/constant"
 	"veloera/relay/helper"
@@ -89,7 +107,8 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		return service.OpenAIErrorWrapperLocal(err, "invalid_text_request", http.StatusBadRequest)
 	}
 
-	if setting.ShouldCheckPromptSensitive() {
+	tokenGroup := c.GetString("token_group")
+	if setting.ShouldCheckPromptSensitiveWithGroup(tokenGroup) {
 		words, err := checkRequestSensitive(textRequest, relayInfo)
 		if err != nil {
 			common.LogWarn(c, fmt.Sprintf("user sensitive words detected: %s", strings.Join(words, ", ")))
@@ -155,6 +174,23 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		relayInfo.ShouldIncludeUsage = true
 	}
 
+	streamSupport := ""
+	if v, ok := relayInfo.ChannelSetting[constant.ChannelSettingStreamSupport]; ok {
+		if str, ok2 := v.(string); ok2 {
+			streamSupport = strings.ToUpper(str)
+		}
+	}
+	pseudoStream := textRequest.Stream && streamSupport == constant.StreamSupportNonStreamOnly
+	var stopHeartbeat func()
+	if pseudoStream {
+		textRequest.Stream = false
+		relayInfo.IsStream = false
+		helper.SetEventStreamHeaders(c)
+		relayInfo.SetFirstResponseTime()
+		_ = helper.WaitData(c)
+		stopHeartbeat = helper.StartWaitingHeartbeat(c, 5*time.Second)
+	}
+
 	adaptor := GetAdaptor(relayInfo.ApiType)
 	if adaptor == nil {
 		return service.OpenAIErrorWrapperLocal(fmt.Errorf("invalid api type: %d", relayInfo.ApiType), "invalid_api_type", http.StatusBadRequest)
@@ -203,6 +239,9 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 	var httpResp *http.Response
 	resp, err := adaptor.DoRequest(c, relayInfo, requestBody)
 	if err != nil {
+		if pseudoStream && stopHeartbeat != nil {
+			stopHeartbeat()
+		}
 		return service.OpenAIErrorWrapper(err, "do_request_failed", http.StatusInternalServerError)
 	}
 
@@ -212,6 +251,9 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		httpResp = resp.(*http.Response)
 		relayInfo.IsStream = relayInfo.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
+			if pseudoStream && stopHeartbeat != nil {
+				stopHeartbeat()
+			}
 			openaiErr = service.RelayErrorHandler(httpResp, false)
 			// reset status code 重置状态码
 			service.ResetStatusCode(openaiErr, statusCodeMappingStr)
@@ -219,8 +261,23 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		}
 	}
 
-	usage, openaiErr := adaptor.DoResponse(c, httpResp, relayInfo)
+	var usage any
+	if pseudoStream {
+		switch relayInfo.ChannelType {
+		case common.ChannelTypeOpenAI:
+			openaiErr, usage = openai.OpenaiPseudoStreamHandler(c, httpResp, relayInfo)
+		case common.ChannelTypeGemini:
+			openaiErr, usage = gemini.GeminiChatPseudoStreamHandler(c, httpResp, relayInfo)
+		default:
+			usage, openaiErr = adaptor.DoResponse(c, httpResp, relayInfo)
+		}
+	} else {
+		usage, openaiErr = adaptor.DoResponse(c, httpResp, relayInfo)
+	}
 	if openaiErr != nil {
+		if pseudoStream && stopHeartbeat != nil {
+			stopHeartbeat()
+		}
 		// reset status code 重置状态码
 		service.ResetStatusCode(openaiErr, statusCodeMappingStr)
 		return openaiErr
@@ -230,6 +287,9 @@ func TextHelper(c *gin.Context) (openaiErr *dto.OpenAIErrorWithStatusCode) {
 		service.PostAudioConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
 	} else {
 		postConsumeQuota(c, relayInfo, usage.(*dto.Usage), preConsumedQuota, userQuota, priceData, "")
+	}
+	if pseudoStream && stopHeartbeat != nil {
+		stopHeartbeat()
 	}
 	return nil
 }

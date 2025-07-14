@@ -6,6 +6,171 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ## Unreleased changes
 
+### Documentation
+- :robot: changelog file generated [`d0c8365b`](https://github.com/Veloera/Veloera/commit/d0c8365b)
+- :robot: changelog file generated [`870be6ef`](https://github.com/Veloera/Veloera/commit/870be6ef)
+- :robot: changelog file generated [`88aafb02`](https://github.com/Veloera/Veloera/commit/88aafb02)
+- :robot: changelog file generated [`46629169`](https://github.com/Veloera/Veloera/commit/46629169)
+- :robot: changelog file generated [`474c94f2`](https://github.com/Veloera/Veloera/commit/474c94f2)
+- :robot: changelog file generated [`edcead5f`](https://github.com/Veloera/Veloera/commit/edcead5f)
+- :robot: changelog file generated [`bd405a7a`](https://github.com/Veloera/Veloera/commit/bd405a7a)
+- :robot: changelog file generated [`48f4877a`](https://github.com/Veloera/Veloera/commit/48f4877a)
+- :robot: changelog file generated [`ebdd544d`](https://github.com/Veloera/Veloera/commit/ebdd544d)
+- :robot: changelog file generated [`8bfb23e3`](https://github.com/Veloera/Veloera/commit/8bfb23e3)
+- :robot: changelog file generated [`bbc8bfbd`](https://github.com/Veloera/Veloera/commit/bbc8bfbd)
+
+### Chore
+- add copyright header to most source files [`ffc8c43a`](https://github.com/Veloera/Veloera/commit/ffc8c43a)
+- add script to update copyright headers in web files [`111a5633`](https://github.com/Veloera/Veloera/commit/111a5633)
+- add script to update copyright headers in Go files [`0d843243`](https://github.com/Veloera/Veloera/commit/0d843243)
+- delete a useless bin file [`f1337203`](https://github.com/Veloera/Veloera/commit/f1337203)
+
+### Other
+- Merge branch 'main' of https://github.com/Veloera/Veloera [`1deb6e68`](https://github.com/Veloera/Veloera/commit/1deb6e68)
+
+## v0.3.29.1 (2025-07-07)
+
+### Chore
+- update dependencies and upgrade @visactor packages to latest versions [`077ef9a3`](https://github.com/Veloera/Veloera/commit/077ef9a3)
+
+## v0.3.29 (2025-07-07)
+
+### Feature
+- add PR merge readiness check workflow [`9ac574b2`](https://github.com/Veloera/Veloera/commit/9ac574b2)
+- add exemption settings (#123) [`cc8a497a`](https://github.com/Veloera/Veloera/commit/cc8a497a)
+
+### Bug Fixes
+- fix submit when using key list mode by filtering empty keys and updating input key [`afade86f`](https://github.com/Veloera/Veloera/commit/afade86f)
+- upgrade @visactor/react-vchart from 1.8.11 to 1.13.11 (#125) [`29f7c060`](https://github.com/Veloera/Veloera/commit/29f7c060)
+- upgrade @visactor/vchart from 1.8.11 to 1.13.11 (#124) [`0e276ca2`](https://github.com/Veloera/Veloera/commit/0e276ca2)
+- add custom endpoint support to aws bedrock adapter (#126) [`00b2b0b1`](https://github.com/Veloera/Veloera/commit/00b2b0b1)
+- add Redis null check in redemption Redeem function (#121) [`0d9354e8`](https://github.com/Veloera/Veloera/commit/0d9354e8)
+
+### Continuous Integration
+- remove merge readiness check workflow [`cae72d2a`](https://github.com/Veloera/Veloera/commit/cae72d2a)
+- remove comment from GITHUB_TOKEN line in merge readiness check workflow [`37424cf3`](https://github.com/Veloera/Veloera/commit/37424cf3)
+
+### Documentation
+- :robot: changelog file generated [`95570017`](https://github.com/Veloera/Veloera/commit/95570017)
+
+### Chore
+- remove add_responses_method.sh script [`52be55d6`](https://github.com/Veloera/Veloera/commit/52be55d6)
+
+### Other
+- Merge branch 'main' of https://github.com/Veloera/Veloera [`e72425ef`](https://github.com/Veloera/Veloera/commit/e72425ef)
+
+## v0.3.28.1 (2025-06-28)
+
+### Feature
+- add support for GitHub channel and model listing (#113) [`55a54f4d`](https://github.com/Veloera/Veloera/commit/55a54f4d)
+
+## v0.3.28 (2025-06-28)
+
+### Feature
+- implement error logging (#112) [`7e55b846`](https://github.com/Veloera/Veloera/commit/7e55b846)
+
+### Documentation
+- :robot: changelog file generated [`1af99f86`](https://github.com/Veloera/Veloera/commit/1af99f86)
+
+## v0.3.27.2 (2025-06-28)
+
+### Chore
+- switch project license to GPL v3 with additional terms and update related documentation and footer [`07715152`](https://github.com/Veloera/Veloera/commit/07715152)
+
+## v0.3.27.1 (2025-06-26)
+
+### Other
+- feature: dd token rate limit feature (#111) [`c956fd33`](https://github.com/Veloera/Veloera/commit/c956fd33)
+
+## v0.3.27 (2025-06-26)
+
+### Feature
+- add token rate limit [`4e50d162`](https://github.com/Veloera/Veloera/commit/4e50d162)
+
+### Bug Fixes
+- correct in-memory rate limiter key usage in token rate limit handler [`a885eb52`](https://github.com/Veloera/Veloera/commit/a885eb52)
+- fix username missing in check-in log (#109) [`199a7afb`](https://github.com/Veloera/Veloera/commit/199a7afb)
+- fetch saved model list via channelId in edit mode (#108) [`2a02e1a6`](https://github.com/Veloera/Veloera/commit/2a02e1a6)
+
+### Documentation
+- add sponsor section to README.md to acknowledge project supporters [`7e294f7e`](https://github.com/Veloera/Veloera/commit/7e294f7e)
+
+### Style
+- remove unused timeFormat constant in token-rate-limit.go [`185c0037`](https://github.com/Veloera/Veloera/commit/185c0037)
+
+### Refactor
+- 优化速率限制输入框的标签和布局结构 [`2241614b`](https://github.com/Veloera/Veloera/commit/2241614b)
+
+## v0.3.26 (2025-06-25)
+
+### Feature
+- implement conversation logging for gemini channel (#107) [`d6800a71`](https://github.com/Veloera/Veloera/commit/d6800a71)
+- support custom start&end date for redeem code (#97) [`8117f302`](https://github.com/Veloera/Veloera/commit/8117f302)
+
+### Bug Fixes
+- modify the API address input box prompt to require a trailing / to disable the default /v1 prefix [`52fcc290`](https://github.com/Veloera/Veloera/commit/52fcc290)
+- update confirmation message to include used redemptions in deletion prompt [`2bd1f3b5`](https://github.com/Veloera/Veloera/commit/2bd1f3b5)
+- delete both disabled and used redemption codes in batch cleanup [`f80e5780`](https://github.com/Veloera/Veloera/commit/f80e5780)
+- upgrade lucide-react from 0.503.0 to 0.511.0 (#101) [`89f42f13`](https://github.com/Veloera/Veloera/commit/89f42f13)
+- upgrade next from 15.3.1 to 15.3.3 (#102) [`7908b87d`](https://github.com/Veloera/Veloera/commit/7908b87d)
+
+## v0.3.25 (2025-06-15)
+
+### Feature
+- add stream_support pseudo streaming (#95) [`a5b82123`](https://github.com/Veloera/Veloera/commit/a5b82123)
+- add chat content log switch (#92) [`9a5dcb3c`](https://github.com/Veloera/Veloera/commit/9a5dcb3c)
+- block browser extension via global switch (#91) [`f8b51cda`](https://github.com/Veloera/Veloera/commit/f8b51cda)
+
+### Bug Fixes
+- disable stream flag if using pseudo stream mode [`bb08a4d4`](https://github.com/Veloera/Veloera/commit/bb08a4d4)
+- fix type in gemini pseudo stream (#96) [`e2c3689f`](https://github.com/Veloera/Veloera/commit/e2c3689f)
+
+### Documentation
+- add ko-fi link [`7f939052`](https://github.com/Veloera/Veloera/commit/7f939052)
+- 补充必选与可选项用于澄清 issue 提交要求 [`9143b84f`](https://github.com/Veloera/Veloera/commit/9143b84f)
+- :robot: changelog file generated [`dae1c898`](https://github.com/Veloera/Veloera/commit/dae1c898)
+
+## v0.3.24 (2025-06-09)
+
+### Bug Fixes
+- change RedisHDelObj to use Del instead of HDel [`aad6531b`](https://github.com/Veloera/Veloera/commit/aad6531b)
+- prevent multiple redemptions of the same code under high concurrency (#88) [`19ffa60c`](https://github.com/Veloera/Veloera/commit/19ffa60c)
+
+## v0.3.23.1 (2025-06-09)
+
+### Bug Fixes
+- remove duplicate gin import in relay-gemini.go (#86) [`fc184745`](https://github.com/Veloera/Veloera/commit/fc184745)
+
+## v0.3.23 (2025-06-09)
+
+### Feature
+- enhance Gemini relay to support Thought processing (#80) [`0fd7c5a4`](https://github.com/Veloera/Veloera/commit/0fd7c5a4)
+
+### Bug Fixes
+- display duplicate models with and without prefixes (#85) [`3f37ad53`](https://github.com/Veloera/Veloera/commit/3f37ad53)
+- enhance schema cleaning (#79) [`5c4ce2a1`](https://github.com/Veloera/Veloera/commit/5c4ce2a1)
+
+### Refactor
+- format code [`1b74bb95`](https://github.com/Veloera/Veloera/commit/1b74bb95)
+
+### Other
+- Merge branch 'main' of https://github.com/Veloera/Veloera [`40a7d134`](https://github.com/Veloera/Veloera/commit/40a7d134)
+
+## v0.3.22 (2025-06-05)
+
+### Feature
+- refresh prefix cache when channel changes (#77) [`a23d6c3d`](https://github.com/Veloera/Veloera/commit/a23d6c3d)
+
+### Bug Fixes
+- remove deprecated Claude API (#73) [`eaaeb315`](https://github.com/Veloera/Veloera/commit/eaaeb315)
+- support multiple channels with different prefixes for same model id without conflict (#70) [`082a7b69`](https://github.com/Veloera/Veloera/commit/082a7b69)
+
+### Documentation
+- :robot: changelog file generated [`b69df048`](https://github.com/Veloera/Veloera/commit/b69df048)
+
+### Refactor
+- simplify request URL generation logic [`8c445790`](https://github.com/Veloera/Veloera/commit/8c445790)
+
 ## v0.3.21.1 (2025-06-01)
 
 ### Bug Fixes

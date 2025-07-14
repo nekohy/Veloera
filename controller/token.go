@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package controller
 
 import (
@@ -141,6 +157,10 @@ func AddToken(c *gin.Context) {
 		ExpiredTime:        token.ExpiredTime,
 		RemainQuota:        token.RemainQuota,
 		UnlimitedQuota:     token.UnlimitedQuota,
+		RateLimitEnabled:   token.RateLimitEnabled,
+		RateLimitPeriod:    token.RateLimitPeriod,
+		RateLimitCount:     token.RateLimitCount,
+		RateLimitSuccess:   token.RateLimitSuccess,
 		ModelLimitsEnabled: token.ModelLimitsEnabled,
 		ModelLimits:        token.ModelLimits,
 		AllowIps:           token.AllowIps,
@@ -230,6 +250,10 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.ExpiredTime = token.ExpiredTime
 		cleanToken.RemainQuota = token.RemainQuota
 		cleanToken.UnlimitedQuota = token.UnlimitedQuota
+		cleanToken.RateLimitEnabled = token.RateLimitEnabled
+		cleanToken.RateLimitPeriod = token.RateLimitPeriod
+		cleanToken.RateLimitCount = token.RateLimitCount
+		cleanToken.RateLimitSuccess = token.RateLimitSuccess
 		cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
 		cleanToken.ModelLimits = token.ModelLimits
 		cleanToken.AllowIps = token.AllowIps

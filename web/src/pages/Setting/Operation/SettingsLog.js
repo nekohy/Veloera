@@ -1,3 +1,21 @@
+/*
+Copyright (c) 2025 Tethys Plex
+
+This file is part of Veloera.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+*/
 import React, { useEffect, useState, useRef } from 'react';
 import { Button, Col, Form, Row, Spin, DatePicker } from '@douyinfe/semi-ui';
 import dayjs from 'dayjs';
@@ -16,6 +34,8 @@ export default function SettingsLog(props) {
   const [loadingCleanHistoryLog, setLoadingCleanHistoryLog] = useState(false);
   const [inputs, setInputs] = useState({
     LogConsumeEnabled: false,
+    LogChatContentEnabled: false,
+    LogErrorEnabled: false,
     historyTimestamp: dayjs().subtract(1, 'month').toDate(),
   });
   const refForm = useRef();
@@ -110,6 +130,32 @@ export default function SettingsLog(props) {
                     setInputs({
                       ...inputs,
                       LogConsumeEnabled: value,
+                    });
+                  }}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'LogChatContentEnabled'}
+                  label={t('日志是否记录对话内容')}
+                  size='default'
+                  onChange={(value) => {
+                    setInputs({
+                      ...inputs,
+                      LogChatContentEnabled: value,
+                    });
+                  }}
+                />
+              </Col>
+              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
+                <Form.Switch
+                  field={'LogErrorEnabled'}
+                  label={t('启用错误日志记录')}
+                  size='default'
+                  onChange={(value) => {
+                    setInputs({
+                      ...inputs,
+                      LogErrorEnabled: value,
                     });
                   }}
                 />

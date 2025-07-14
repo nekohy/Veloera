@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package model_setting
 
 import (
@@ -24,8 +40,8 @@ var defaultGeminiSettings = GeminiSettings{
 		"HARM_CATEGORY_DANGEROUS_CONTENT": "BLOCK_NONE",
 	},
 	VersionSettings: map[string]string{
-		"default":          "v1beta",
-		"gemini-1.0-pro":   "v1beta",
+		"default":        "v1beta",
+		"gemini-1.0-pro": "v1beta",
 	},
 	SupportedImagineModels: []string{
 		"gemini-2.0-flash-exp-image-generation",
@@ -33,9 +49,10 @@ var defaultGeminiSettings = GeminiSettings{
 	},
 	ThinkingAdapterEnabled:                false,
 	ThinkingAdapterBudgetTokensPercentage: 0.6,
-	ModelsSupportedThinkingBudget:         []string{
+	ModelsSupportedThinkingBudget: []string{
 		"gemini-2.5-flash-preview-05-20",
 		"gemini-2.5-flash-preview-04-17",
+		"gemini-2.5-pro-preview-06-05",
 	},
 }
 

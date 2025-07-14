@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package openai
 
 import (
@@ -18,6 +34,7 @@ import (
 	"veloera/relay/channel/minimax"
 	"veloera/relay/channel/moonshot"
 	"veloera/relay/channel/openrouter"
+	"veloera/relay/channel/github"
 	"veloera/relay/channel/xinference"
 	relaycommon "veloera/relay/common"
 	"veloera/relay/common_handler"
@@ -62,20 +79,20 @@ func (a *Adaptor) Init(info *relaycommon.RelayInfo) {
 }
 
 func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
-    if info.RelayFormat == relaycommon.RelayFormatClaude || info.RelayMode == constant.RelayModeResponses {
-        var suffixPath string
-        if info.RelayFormat == relaycommon.RelayFormatClaude {
-            suffixPath = "chat/completions"
-        } else {
-            suffixPath = "responses"
-        }
+	if info.RelayFormat == relaycommon.RelayFormatClaude || info.RelayMode == constant.RelayModeResponses {
+		var suffixPath string
+		if info.RelayFormat == relaycommon.RelayFormatClaude {
+			suffixPath = "chat/completions"
+		} else {
+			suffixPath = "responses"
+		}
 
-        // 统一检查 BaseUrl 是否以 "/" 结尾
-        if strings.HasSuffix(info.BaseUrl, "/") {
-            return info.BaseUrl + suffixPath, nil
-        }
-        return fmt.Sprintf("%s/v1/%s", info.BaseUrl, suffixPath), nil
-    }
+		// 统一检查 BaseUrl 是否以 "/" 结尾
+		if strings.HasSuffix(info.BaseUrl, "/") {
+			return info.BaseUrl + suffixPath, nil
+		}
+		return fmt.Sprintf("%s/v1/%s", info.BaseUrl, suffixPath), nil
+	}
 	if info.RelayMode == constant.RelayModeRealtime {
 		if strings.HasPrefix(info.BaseUrl, "https://") {
 			baseUrl := strings.TrimPrefix(info.BaseUrl, "https://")
@@ -322,6 +339,8 @@ func (a *Adaptor) GetModelList() []string {
 		return xinference.ModelList
 	case common.ChannelTypeOpenRouter:
 		return openrouter.ModelList
+	case common.ChannelTypeGitHub:
+		return github.ModelList
 	default:
 		return ModelList
 	}
@@ -341,6 +360,8 @@ func (a *Adaptor) GetChannelName() string {
 		return xinference.ChannelName
 	case common.ChannelTypeOpenRouter:
 		return openrouter.ChannelName
+	case common.ChannelTypeGitHub:
+		return github.ChannelName
 	default:
 		return ChannelName
 	}

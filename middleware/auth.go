@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package middleware
 
 import (
@@ -228,6 +244,10 @@ func TokenAuth() func(c *gin.Context) {
 		if !token.UnlimitedQuota {
 			c.Set("token_quota", token.RemainQuota)
 		}
+		c.Set("token_rate_limit_enabled", token.RateLimitEnabled)
+		c.Set("token_rate_limit_period", token.RateLimitPeriod)
+		c.Set("token_rate_limit_count", token.RateLimitCount)
+		c.Set("token_rate_limit_success", token.RateLimitSuccess)
 		if token.ModelLimitsEnabled {
 			c.Set("token_model_limit_enabled", true)
 			c.Set("token_model_limit", token.GetModelLimitsMap())

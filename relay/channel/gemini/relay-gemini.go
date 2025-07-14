@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package gemini
 
 import (
@@ -7,15 +23,212 @@ import (
 	"net/http"
 	"strings"
 	"unicode/utf8"
+
+	"github.com/gin-gonic/gin"
+
 	"veloera/common"
 	"veloera/constant"
 	"veloera/dto"
+	openaichannel "veloera/relay/channel/openai"
 	relaycommon "veloera/relay/common"
 	"veloera/relay/helper"
 	"veloera/service"
 	"veloera/setting/model_setting"
-	"github.com/gin-gonic/gin"
 )
+
+func extractGeminiInputContent(info *relaycommon.RelayInfo) {
+	if info.Other == nil {
+		info.Other = make(map[string]interface{})
+	}
+
+	if messages, ok := info.PromptMessages.([]interface{}); ok && len(messages) > 0 {
+		var systemPrompt string
+		var contextMessages []interface{}
+		var userMessage interface{}
+		var lastUserMessageIndex = -1
+
+		for i := len(messages) - 1; i >= 0; i-- {
+			if msgMap, ok := messages[i].(map[string]interface{}); ok {
+				if role, exists := msgMap["role"]; exists && role == "user" {
+					lastUserMessageIndex = i
+					break
+				}
+			}
+		}
+
+		for i, msg := range messages {
+			if msgMap, ok := msg.(map[string]interface{}); ok {
+				if role, exists := msgMap["role"]; exists {
+					if role == "system" {
+						if content, hasContent := msgMap["content"]; hasContent && content != nil {
+							if systemPrompt == "" {
+								systemPrompt = fmt.Sprintf("%v", content)
+							} else {
+								systemPrompt += "\n" + fmt.Sprintf("%v", content)
+							}
+						}
+					} else if i == lastUserMessageIndex {
+						userMessage = msgMap
+					} else {
+						contextMessages = append(contextMessages, msgMap)
+					}
+				}
+			}
+		}
+
+		if systemPrompt != "" {
+			info.Other["system_prompt"] = systemPrompt
+		}
+		info.Other["context"] = contextMessages
+		if userMessage != nil {
+			info.Other["input_content"] = userMessage
+		} else {
+			if len(messages) > 0 {
+				info.Other["input_content"] = messages[len(messages)-1]
+			}
+		}
+	} else {
+		info.Other["input_content"] = info.PromptMessages
+	}
+}
+
+func extractGeminiOutputContent(info *relaycommon.RelayInfo, response *GeminiChatResponse) {
+	if info.Other == nil {
+		info.Other = make(map[string]interface{})
+	}
+
+	if response == nil || len(response.Candidates) == 0 {
+		return
+	}
+
+	var outputTexts []string
+	var thinkingTexts []string
+	var functionCalls []interface{}
+	var safetyRatings []interface{}
+	var codeExecutions []interface{}
+	var multimodalSummary = map[string]interface{}{
+		"image_count": 0,
+		"audio_count": 0,
+		"file_count":  0,
+	}
+
+	for _, candidate := range response.Candidates {
+		if len(candidate.SafetyRatings) > 0 {
+			for _, rating := range candidate.SafetyRatings {
+				safetyRatings = append(safetyRatings, map[string]interface{}{
+					"category":    rating.Category,
+					"probability": rating.Probability,
+				})
+			}
+		}
+
+		for _, part := range candidate.Content.Parts {
+			if part.FunctionCall != nil {
+				functionCalls = append(functionCalls, map[string]interface{}{
+					"name":      part.FunctionCall.FunctionName,
+					"arguments": part.FunctionCall.Arguments,
+				})
+			} else if part.FunctionResponse != nil {
+				functionCalls = append(functionCalls, map[string]interface{}{
+					"type":     "response",
+					"name":     part.FunctionResponse.Name,
+					"response": part.FunctionResponse.Response,
+				})
+			} else if part.Thought {
+				thinkingTexts = append(thinkingTexts, part.Text)
+			} else if part.ExecutableCode != nil {
+				codeExecutions = append(codeExecutions, map[string]interface{}{
+					"type":     "code",
+					"language": part.ExecutableCode.Language,
+					"code":     part.ExecutableCode.Code,
+				})
+			} else if part.CodeExecutionResult != nil {
+				codeExecutions = append(codeExecutions, map[string]interface{}{
+					"type":    "result",
+					"outcome": part.CodeExecutionResult.Outcome,
+					"output":  part.CodeExecutionResult.Output,
+				})
+			} else if part.InlineData != nil {
+				if strings.HasPrefix(part.InlineData.MimeType, "image") {
+					multimodalSummary["image_count"] = multimodalSummary["image_count"].(int) + 1
+				} else if strings.HasPrefix(part.InlineData.MimeType, "audio") {
+					multimodalSummary["audio_count"] = multimodalSummary["audio_count"].(int) + 1
+				} else {
+					multimodalSummary["file_count"] = multimodalSummary["file_count"].(int) + 1
+				}
+			} else if part.Text != "" && part.Text != "\n" {
+				outputTexts = append(outputTexts, part.Text)
+			}
+		}
+
+		if candidate.FinishReason != nil {
+			info.Other["finish_reason"] = *candidate.FinishReason
+		}
+	}
+
+	info.Other["output_content"] = strings.Join(outputTexts, "\n")
+
+	if len(thinkingTexts) > 0 {
+		info.Other["thinking_content"] = strings.Join(thinkingTexts, "\n")
+	}
+
+	if len(functionCalls) > 0 {
+		info.Other["function_calls"] = functionCalls
+	}
+
+	if len(safetyRatings) > 0 {
+		info.Other["safety_ratings"] = safetyRatings
+	}
+
+	if len(codeExecutions) > 0 {
+		info.Other["code_execution"] = codeExecutions
+	}
+
+	totalMultimodal := multimodalSummary["image_count"].(int) + multimodalSummary["audio_count"].(int) + multimodalSummary["file_count"].(int)
+	if totalMultimodal > 0 {
+		multimodalSummary["has_multimodal"] = true
+		info.Other["multimodal_summary"] = multimodalSummary
+	}
+
+	if response.UsageMetadata.TotalTokenCount > 0 {
+		info.Other["usage_metadata"] = map[string]interface{}{
+			"prompt_tokens":     response.UsageMetadata.PromptTokenCount,
+			"candidates_tokens": response.UsageMetadata.CandidatesTokenCount,
+			"total_tokens":      response.UsageMetadata.TotalTokenCount,
+			"thoughts_tokens":   response.UsageMetadata.ThoughtsTokenCount,
+		}
+	}
+}
+
+func extractGeminiStreamContent(info *relaycommon.RelayInfo, accumulatedContent string, accumulatedThinking string, accumulatedFunctionCalls []interface{}, accumulatedSafetyRatings []interface{}, accumulatedCodeExecutions []interface{}, multimodalSummary map[string]interface{}) {
+	if info.Other == nil {
+		info.Other = make(map[string]interface{})
+	}
+
+	info.Other["output_content"] = accumulatedContent
+
+	if accumulatedThinking != "" {
+		info.Other["thinking_content"] = accumulatedThinking
+	}
+
+	if len(accumulatedFunctionCalls) > 0 {
+		info.Other["function_calls"] = accumulatedFunctionCalls
+	}
+
+	if len(accumulatedSafetyRatings) > 0 {
+		info.Other["safety_ratings"] = accumulatedSafetyRatings
+	}
+
+	if len(accumulatedCodeExecutions) > 0 {
+		info.Other["code_execution"] = accumulatedCodeExecutions
+	}
+
+	totalMultimodal := multimodalSummary["image_count"].(int) + multimodalSummary["audio_count"].(int) + multimodalSummary["file_count"].(int)
+	if totalMultimodal > 0 {
+		multimodalSummary["has_multimodal"] = true
+		info.Other["multimodal_summary"] = multimodalSummary
+	}
+}
 
 // Setting safety to the lowest possible values since Gemini is already powerless enough
 func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon.RelayInfo) (*GeminiChatRequest, error) {
@@ -44,7 +257,7 @@ func CovertGemini2OpenAI(textRequest dto.GeneralOpenAIRequest, info *relaycommon
 		}
 	}
 
-	if strings.HasPrefix(info.UpstreamModelName, "gemini-2.5-") && model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
+	if model_setting.GetGeminiSettings().ThinkingAdapterEnabled {
 		if geminiRequest.GenerationConfig.ThinkingConfig != nil { // Only apply if ThinkingConfig was instantiated
 			if strings.HasSuffix(info.OriginModelName, "-thinking") {
 				budgetTokens := model_setting.GetGeminiSettings().ThinkingAdapterBudgetTokensPercentage * float64(geminiRequest.GenerationConfig.MaxOutputTokens)
@@ -303,85 +516,111 @@ func cleanFunctionParameters(params interface{}) interface{} {
 		return nil
 	}
 
-	paramMap, ok := params.(map[string]interface{})
-	if !ok {
-		// Not a map, return as is (e.g., could be an array or primitive)
-		return params
-	}
+	switch v := params.(type) {
+	case map[string]interface{}:
+		// Create a copy to avoid modifying the original
+		cleanedMap := make(map[string]interface{})
+		for k, val := range v {
+			cleanedMap[k] = val
+		}
 
-	// Create a copy to avoid modifying the original
-	cleanedMap := make(map[string]interface{})
-	for k, v := range paramMap {
-		cleanedMap[k] = v
-	}
+		// Remove unsupported root-level fields
+		delete(cleanedMap, "default")
+		delete(cleanedMap, "exclusiveMaximum")
+		delete(cleanedMap, "exclusiveMinimum")
+		delete(cleanedMap, "$schema")
+		delete(cleanedMap, "additionalProperties")
 
-	// Clean properties
-	if props, ok := cleanedMap["properties"].(map[string]interface{}); ok && props != nil {
-		cleanedProps := make(map[string]interface{})
-		for propName, propValue := range props {
-			propMap, ok := propValue.(map[string]interface{})
-			if !ok {
-				cleanedProps[propName] = propValue // Keep non-map properties
-				continue
-			}
-
-			// Create a copy of the property map
-			cleanedPropMap := make(map[string]interface{})
-			for k, v := range propMap {
-				cleanedPropMap[k] = v
-			}
-
-			// Remove unsupported fields
-			delete(cleanedPropMap, "default")
-			delete(cleanedPropMap, "exclusiveMaximum")
-			delete(cleanedPropMap, "exclusiveMinimum")
-
-			// Check and clean 'format' for string types
-			if propType, typeExists := cleanedPropMap["type"].(string); typeExists && propType == "string" {
-				if formatValue, formatExists := cleanedPropMap["format"].(string); formatExists {
-					if formatValue != "enum" && formatValue != "date-time" {
-						delete(cleanedPropMap, "format")
-					}
+		// Check and clean 'format' for string types
+		if propType, typeExists := cleanedMap["type"].(string); typeExists && propType == "string" {
+			if formatValue, formatExists := cleanedMap["format"].(string); formatExists {
+				if formatValue != "enum" && formatValue != "date-time" {
+					delete(cleanedMap, "format")
 				}
 			}
+		}
 
-			// Recursively clean nested properties within this property if it's an object/array
-			// Check the type before recursing
-			if propType, typeExists := cleanedPropMap["type"].(string); typeExists && (propType == "object" || propType == "array") {
-				cleanedProps[propName] = cleanFunctionParameters(cleanedPropMap)
-			} else {
-				cleanedProps[propName] = cleanedPropMap // Assign the cleaned map back if not recursing
+		// Clean properties
+		if props, ok := cleanedMap["properties"].(map[string]interface{}); ok && props != nil {
+			cleanedProps := make(map[string]interface{})
+			for propName, propValue := range props {
+				cleanedProps[propName] = cleanFunctionParameters(propValue)
 			}
-
+			cleanedMap["properties"] = cleanedProps
 		}
-		cleanedMap["properties"] = cleanedProps
-	}
 
-	// Recursively clean items in arrays if needed (e.g., type: array, items: { ... })
-	if items, ok := cleanedMap["items"].(map[string]interface{}); ok && items != nil {
-		cleanedMap["items"] = cleanFunctionParameters(items)
-	}
-	// Also handle items if it's an array of schemas
-	if itemsArray, ok := cleanedMap["items"].([]interface{}); ok {
-		cleanedItemsArray := make([]interface{}, len(itemsArray))
-		for i, item := range itemsArray {
-			cleanedItemsArray[i] = cleanFunctionParameters(item)
+		// Recursively clean items in arrays
+		if items, ok := cleanedMap["items"].(map[string]interface{}); ok && items != nil {
+			cleanedMap["items"] = cleanFunctionParameters(items)
 		}
-		cleanedMap["items"] = cleanedItemsArray
-	}
-
-	// Recursively clean other schema composition keywords if necessary
-	for _, field := range []string{"allOf", "anyOf", "oneOf"} {
-		if nested, ok := cleanedMap[field].([]interface{}); ok {
-			cleanedNested := make([]interface{}, len(nested))
-			for i, item := range nested {
-				cleanedNested[i] = cleanFunctionParameters(item)
+		// Also handle items if it's an array of schemas
+		if itemsArray, ok := cleanedMap["items"].([]interface{}); ok {
+			cleanedItemsArray := make([]interface{}, len(itemsArray))
+			for i, item := range itemsArray {
+				cleanedItemsArray[i] = cleanFunctionParameters(item)
 			}
-			cleanedMap[field] = cleanedNested
+			cleanedMap["items"] = cleanedItemsArray
 		}
-	}
 
-	return cleanedMap
+		// Recursively clean other schema composition keywords
+		for _, field := range []string{"allOf", "anyOf", "oneOf"} {
+			if nested, ok := cleanedMap[field].([]interface{}); ok {
+				cleanedNested := make([]interface{}, len(nested))
+				for i, item := range nested {
+					cleanedNested[i] = cleanFunctionParameters(item)
+				}
+				cleanedMap[field] = cleanedNested
+			}
+		}
+
+		// Recursively clean patternProperties
+		if patternProps, ok := cleanedMap["patternProperties"].(map[string]interface{}); ok {
+			cleanedPatternProps := make(map[string]interface{})
+			for pattern, schema := range patternProps {
+				cleanedPatternProps[pattern] = cleanFunctionParameters(schema)
+			}
+			cleanedMap["patternProperties"] = cleanedPatternProps
+		}
+
+		// Recursively clean definitions
+		if definitions, ok := cleanedMap["definitions"].(map[string]interface{}); ok {
+			cleanedDefinitions := make(map[string]interface{})
+			for defName, defSchema := range definitions {
+				cleanedDefinitions[defName] = cleanFunctionParameters(defSchema)
+			}
+			cleanedMap["definitions"] = cleanedDefinitions
+		}
+
+		// Recursively clean $defs (newer JSON Schema draft)
+		if defs, ok := cleanedMap["$defs"].(map[string]interface{}); ok {
+			cleanedDefs := make(map[string]interface{})
+			for defName, defSchema := range defs {
+				cleanedDefs[defName] = cleanFunctionParameters(defSchema)
+			}
+			cleanedMap["$defs"] = cleanedDefs
+		}
+
+		// Clean conditional keywords
+		for _, field := range []string{"if", "then", "else", "not"} {
+			if nested, ok := cleanedMap[field]; ok {
+				cleanedMap[field] = cleanFunctionParameters(nested)
+			}
+		}
+
+		return cleanedMap
+
+	case []interface{}:
+		// Handle arrays of schemas
+		cleanedArray := make([]interface{}, len(v))
+		for i, item := range v {
+			cleanedArray[i] = cleanFunctionParameters(item)
+		}
+		return cleanedArray
+
+	default:
+		// Not a map or array, return as is (e.g., could be a primitive)
+		return params
+	}
 }
 
 func removeAdditionalPropertiesWithDepth(schema interface{}, depth int) interface{} {
@@ -542,6 +781,8 @@ func responseGeminiChat2OpenAI(response *GeminiChatResponse) *dto.OpenAITextResp
 					if call := getResponseToolCall(&part); call != nil {
 						toolCalls = append(toolCalls, *call)
 					}
+				} else if part.Thought {
+					choice.Message.ReasoningContent = part.Text
 				} else {
 					if part.ExecutableCode != nil {
 						texts = append(texts, "```"+part.ExecutableCode.Language+"\n"+part.ExecutableCode.Code+"\n```")
@@ -599,6 +840,7 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *GeminiChatResponse) (*dto.C
 		}
 		var texts []string
 		isTools := false
+		isThought := false
 		if candidate.FinishReason != nil {
 			// p := GeminiConvertFinishReason(*candidate.FinishReason)
 			switch *candidate.FinishReason {
@@ -623,6 +865,9 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *GeminiChatResponse) (*dto.C
 					call.SetIndex(len(choice.Delta.ToolCalls))
 					choice.Delta.ToolCalls = append(choice.Delta.ToolCalls, *call)
 				}
+			} else if part.Thought {
+				isThought = true
+				texts = append(texts, part.Text)
 			} else {
 				if part.ExecutableCode != nil {
 					texts = append(texts, "```"+part.ExecutableCode.Language+"\n"+part.ExecutableCode.Code+"\n```\n")
@@ -635,7 +880,11 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *GeminiChatResponse) (*dto.C
 				}
 			}
 		}
-		choice.Delta.SetContentString(strings.Join(texts, "\n"))
+		if isThought {
+			choice.Delta.SetReasoningContent(strings.Join(texts, "\n"))
+		} else {
+			choice.Delta.SetContentString(strings.Join(texts, "\n"))
+		}
 		if isTools {
 			choice.FinishReason = &constant.FinishReasonToolCalls
 		}
@@ -649,11 +898,23 @@ func streamResponseGeminiChat2OpenAI(geminiResponse *GeminiChatResponse) (*dto.C
 }
 
 func GeminiChatStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
-	// responseText := ""
+	extractGeminiInputContent(info)
+
 	id := fmt.Sprintf("chatcmpl-%s", common.GetUUID())
 	createAt := common.GetTimestamp()
 	var usage = &dto.Usage{}
 	var imageCount int
+
+	var accumulatedContent strings.Builder
+	var accumulatedThinking strings.Builder
+	var accumulatedFunctionCalls []interface{}
+	var accumulatedSafetyRatings []interface{}
+	var accumulatedCodeExecutions []interface{}
+	var multimodalSummary = map[string]interface{}{
+		"image_count": 0,
+		"audio_count": 0,
+		"file_count":  0,
+	}
 
 	helper.StreamScannerHandler(c, resp, info, func(data string) bool {
 		var geminiResponse GeminiChatResponse
@@ -661,6 +922,56 @@ func GeminiChatStreamHandler(c *gin.Context, resp *http.Response, info *relaycom
 		if err != nil {
 			common.LogError(c, "error unmarshalling stream response: "+err.Error())
 			return false
+		}
+
+		for _, candidate := range geminiResponse.Candidates {
+			if len(candidate.SafetyRatings) > 0 {
+				for _, rating := range candidate.SafetyRatings {
+					accumulatedSafetyRatings = append(accumulatedSafetyRatings, map[string]interface{}{
+						"category":    rating.Category,
+						"probability": rating.Probability,
+					})
+				}
+			}
+
+			for _, part := range candidate.Content.Parts {
+				if part.FunctionCall != nil {
+					accumulatedFunctionCalls = append(accumulatedFunctionCalls, map[string]interface{}{
+						"name":      part.FunctionCall.FunctionName,
+						"arguments": part.FunctionCall.Arguments,
+					})
+				} else if part.FunctionResponse != nil {
+					accumulatedFunctionCalls = append(accumulatedFunctionCalls, map[string]interface{}{
+						"type":     "response",
+						"name":     part.FunctionResponse.Name,
+						"response": part.FunctionResponse.Response,
+					})
+				} else if part.Thought {
+					accumulatedThinking.WriteString(part.Text)
+				} else if part.ExecutableCode != nil {
+					accumulatedCodeExecutions = append(accumulatedCodeExecutions, map[string]interface{}{
+						"type":     "code",
+						"language": part.ExecutableCode.Language,
+						"code":     part.ExecutableCode.Code,
+					})
+				} else if part.CodeExecutionResult != nil {
+					accumulatedCodeExecutions = append(accumulatedCodeExecutions, map[string]interface{}{
+						"type":    "result",
+						"outcome": part.CodeExecutionResult.Outcome,
+						"output":  part.CodeExecutionResult.Output,
+					})
+				} else if part.InlineData != nil {
+					if strings.HasPrefix(part.InlineData.MimeType, "image") {
+						multimodalSummary["image_count"] = multimodalSummary["image_count"].(int) + 1
+					} else if strings.HasPrefix(part.InlineData.MimeType, "audio") {
+						multimodalSummary["audio_count"] = multimodalSummary["audio_count"].(int) + 1
+					} else {
+						multimodalSummary["file_count"] = multimodalSummary["file_count"].(int) + 1
+					}
+				} else if part.Text != "" && part.Text != "\n" {
+					accumulatedContent.WriteString(part.Text)
+				}
+			}
 		}
 
 		response, isStop, hasImage := streamResponseGeminiChat2OpenAI(&geminiResponse)
@@ -685,6 +996,8 @@ func GeminiChatStreamHandler(c *gin.Context, resp *http.Response, info *relaycom
 		}
 		return true
 	})
+
+	extractGeminiStreamContent(info, accumulatedContent.String(), accumulatedThinking.String(), accumulatedFunctionCalls, accumulatedSafetyRatings, accumulatedCodeExecutions, multimodalSummary)
 
 	var response *dto.ChatCompletionsStreamResponse
 
@@ -711,6 +1024,8 @@ func GeminiChatStreamHandler(c *gin.Context, resp *http.Response, info *relaycom
 }
 
 func GeminiChatHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+	extractGeminiInputContent(info)
+
 	responseBody, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError), nil
@@ -735,6 +1050,9 @@ func GeminiChatHandler(c *gin.Context, resp *http.Response, info *relaycommon.Re
 			StatusCode: resp.StatusCode,
 		}, nil
 	}
+
+	extractGeminiOutputContent(info, &geminiResponse)
+
 	fullTextResponse := responseGeminiChat2OpenAI(&geminiResponse)
 	fullTextResponse.Model = info.UpstreamModelName
 	usage := &dto.Usage{
@@ -742,8 +1060,7 @@ func GeminiChatHandler(c *gin.Context, resp *http.Response, info *relaycommon.Re
 		CompletionTokens: geminiResponse.UsageMetadata.CandidatesTokenCount,
 		TotalTokens:      geminiResponse.UsageMetadata.TotalTokenCount,
 	}
-	// Only process ReasoningTokens for gemini-2.5- models
-	if strings.HasPrefix(info.UpstreamModelName, "gemini-2.5-") {
+	if geminiResponse.UsageMetadata.ThoughtsTokenCount > 0 {
 		usage.CompletionTokenDetails.ReasoningTokens = geminiResponse.UsageMetadata.ThoughtsTokenCount
 	}
 	fullTextResponse.Usage = *usage
@@ -804,4 +1121,65 @@ func GeminiEmbeddingHandler(c *gin.Context, resp *http.Response, info *relaycomm
 	_, _ = c.Writer.Write(jsonResponse)
 
 	return usage, nil
+}
+
+func GeminiChatPseudoStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+	extractGeminiInputContent(info)
+
+	geminiResp, errResp := parseGeminiChatResponse(resp)
+	if errResp != nil {
+		return errResp, nil
+	}
+
+	extractGeminiOutputContent(info, geminiResp)
+
+	fullTextResponse := responseGeminiChat2OpenAI(geminiResp)
+	fullTextResponse.Model = info.UpstreamModelName
+	usage := buildGeminiUsage(geminiResp)
+	fullTextResponse.Usage = *usage
+
+	helper.SetEventStreamHeaders(c)
+	info.SetFirstResponseTime()
+
+	streamResp := openaichannel.BuildStreamChunkFromTextResponse(fullTextResponse)
+	_ = helper.ObjectData(c, streamResp)
+	if info.ShouldIncludeUsage {
+		final := helper.GenerateFinalUsageResponse(helper.GetResponseID(c), common.GetTimestamp(), info.UpstreamModelName, *usage)
+		_ = helper.ObjectData(c, final)
+	}
+	helper.Done(c)
+	return nil, usage
+}
+
+func parseGeminiChatResponse(resp *http.Response) (*GeminiChatResponse, *dto.OpenAIErrorWithStatusCode) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+	}
+	if err = resp.Body.Close(); err != nil {
+		return nil, service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError)
+	}
+	var geminiResponse GeminiChatResponse
+	if err = json.Unmarshal(body, &geminiResponse); err != nil {
+		return nil, service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
+	}
+	if len(geminiResponse.Candidates) == 0 {
+		return nil, &dto.OpenAIErrorWithStatusCode{
+			Error:      dto.OpenAIError{Message: "No candidates returned", Type: "server_error", Code: 500},
+			StatusCode: resp.StatusCode,
+		}
+	}
+	return &geminiResponse, nil
+}
+
+func buildGeminiUsage(gResp *GeminiChatResponse) *dto.Usage {
+	usage := &dto.Usage{
+		PromptTokens:     gResp.UsageMetadata.PromptTokenCount,
+		CompletionTokens: gResp.UsageMetadata.CandidatesTokenCount,
+		TotalTokens:      gResp.UsageMetadata.TotalTokenCount,
+	}
+	if gResp.UsageMetadata.ThoughtsTokenCount > 0 {
+		usage.CompletionTokenDetails.ReasoningTokens = gResp.UsageMetadata.ThoughtsTokenCount
+	}
+	return usage
 }

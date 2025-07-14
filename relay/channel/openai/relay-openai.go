@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package openai
 
 import (
@@ -864,4 +880,78 @@ func preConsumeUsage(ctx *gin.Context, info *relaycommon.RelayInfo, usage *dto.R
 	// clear usage
 	err := service.PreWssConsumeQuota(ctx, info, usage)
 	return err
+}
+
+func OpenaiPseudoStreamHandler(c *gin.Context, resp *http.Response, info *relaycommon.RelayInfo) (*dto.OpenAIErrorWithStatusCode, *dto.Usage) {
+	simpleResponse, errResp := parseOpenAITextResponse(resp)
+	if errResp != nil {
+		return errResp, nil
+	}
+
+	fillOpenAIUsage(simpleResponse, info)
+
+	helper.SetEventStreamHeaders(c)
+	info.SetFirstResponseTime()
+
+	streamResp := BuildStreamChunkFromTextResponse(simpleResponse)
+	_ = helper.ObjectData(c, streamResp)
+	if info.ShouldIncludeUsage {
+		final := helper.GenerateFinalUsageResponse(helper.GetResponseID(c), common.GetTimestamp(), info.UpstreamModelName, simpleResponse.Usage)
+		_ = helper.ObjectData(c, final)
+	}
+	helper.Done(c)
+	return nil, &simpleResponse.Usage
+}
+
+func parseOpenAITextResponse(resp *http.Response) (*dto.OpenAITextResponse, *dto.OpenAIErrorWithStatusCode) {
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, service.OpenAIErrorWrapper(err, "read_response_body_failed", http.StatusInternalServerError)
+	}
+	if err = resp.Body.Close(); err != nil {
+		return nil, service.OpenAIErrorWrapper(err, "close_response_body_failed", http.StatusInternalServerError)
+	}
+	var res dto.OpenAITextResponse
+	if err = common.DecodeJson(body, &res); err != nil {
+		return nil, service.OpenAIErrorWrapper(err, "unmarshal_response_body_failed", http.StatusInternalServerError)
+	}
+	if res.Error != nil && res.Error.Type != "" {
+		return nil, &dto.OpenAIErrorWithStatusCode{Error: *res.Error, StatusCode: resp.StatusCode}
+	}
+	return &res, nil
+}
+
+func fillOpenAIUsage(resp *dto.OpenAITextResponse, info *relaycommon.RelayInfo) {
+	if resp.Usage.TotalTokens != 0 && (resp.Usage.PromptTokens != 0 || resp.Usage.CompletionTokens != 0) {
+		return
+	}
+	completionTokens := 0
+	for _, choice := range resp.Choices {
+		ctkm, _ := service.CountTextToken(choice.Message.StringContent()+choice.Message.ReasoningContent+choice.Message.Reasoning, info.UpstreamModelName)
+		completionTokens += ctkm
+	}
+	resp.Usage = dto.Usage{
+		PromptTokens:     info.PromptTokens,
+		CompletionTokens: completionTokens,
+		TotalTokens:      info.PromptTokens + completionTokens,
+	}
+}
+
+func BuildStreamChunkFromTextResponse(simpleResponse *dto.OpenAITextResponse) dto.ChatCompletionsStreamResponse {
+	var streamResp dto.ChatCompletionsStreamResponse
+	streamResp.Id = simpleResponse.Id
+	streamResp.Object = "chat.completion.chunk"
+	streamResp.Created = simpleResponse.Created
+	streamResp.Model = simpleResponse.Model
+	streamResp.Choices = make([]dto.ChatCompletionsStreamResponseChoice, len(simpleResponse.Choices))
+	for i, ch := range simpleResponse.Choices {
+		var choice dto.ChatCompletionsStreamResponseChoice
+		choice.Index = ch.Index
+		finishReason := ch.FinishReason
+		choice.FinishReason = &finishReason
+		choice.Delta.Role = "assistant"
+		choice.Delta.SetContentString(ch.Message.StringContent())
+		streamResp.Choices[i] = choice
+	}
+	return streamResp
 }

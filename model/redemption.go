@@ -1,9 +1,27 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package model
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"strconv"
+	"time"
 	"veloera/common"
 
 	"gorm.io/gorm"
@@ -18,6 +36,8 @@ type Redemption struct {
 	Quota        int            `json:"quota" gorm:"default:100"`
 	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
 	RedeemedTime int64          `json:"redeemed_time" gorm:"bigint"`
+	ValidFrom    int64          `json:"valid_from" gorm:"bigint;default:0"`    // 生效时间，0表示立即生效
+	ValidUntil   int64          `json:"valid_until" gorm:"bigint;default:0"`   // 过期时间，0表示永不过期
 	Count        int            `json:"count" gorm:"-:all"` // only for api request
 	UsedUserId   int            `json:"used_user_id"`
 	IsGift       bool           `json:"is_gift" gorm:"default:false"`
@@ -144,11 +164,33 @@ func Redeem(key string, userId int) (quota int, isGift bool, err error) {
 	if common.UsingPostgreSQL {
 		keyCol = `"key"`
 	}
-	common.RandomSleep()
+
+	if common.RedisEnabled && common.RDB != nil {
+		lockKey := "rloc:" + key // Using a shorter prefix "rloc:" for brevity
+		locked, redisErr := common.RDB.SetNX(context.Background(), lockKey, "1", 10*time.Second).Result()
+		if redisErr != nil {
+			common.SysError("Redis lock acquisition error: " + redisErr.Error())
+			return 0, false, errors.New("系统暂时繁忙，请稍后再试") // System temporarily busy, please try again later
+		}
+		if !locked {
+			return 0, false, errors.New("操作过于频繁，请稍后再试") // Operation too frequent, please try again later
+		}
+		defer common.RDB.Del(context.Background(), lockKey)
+	}
+
 	err = DB.Transaction(func(tx *gorm.DB) error {
 		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error
 		if err != nil {
 			return errors.New("无效的兑换码")
+		}
+
+		// 检查兑换码时间范围
+		currentTime := common.GetTimestamp()
+		if redemption.ValidFrom > 0 && currentTime < redemption.ValidFrom {
+			return errors.New("兑换码尚未生效")
+		}
+		if redemption.ValidUntil > 0 && currentTime > redemption.ValidUntil {
+			return errors.New("兑换码已过期")
 		}
 
 		if !redemption.IsGift {
@@ -234,7 +276,7 @@ func (redemption *Redemption) SelectUpdate() error {
 // Update Make sure your token's fields is completed, because this will update non-zero values
 func (redemption *Redemption) Update() error {
 	var err error
-	err = DB.Model(redemption).Select("name", "status", "quota", "redeemed_time").Updates(redemption).Error
+	err = DB.Model(redemption).Select("name", "status", "quota", "redeemed_time", "valid_from", "valid_until").Updates(redemption).Error
 	return err
 }
 
@@ -299,6 +341,7 @@ func BatchDisableRedemptions(ids []int) (count int64, err error) {
 
 // DeleteDisabledRedemptions 删除所有已禁用的兑换码
 func DeleteDisabledRedemptions() (count int64, err error) {
-	result := DB.Where("status = ?", common.RedemptionCodeStatusDisabled).Delete(&Redemption{})
-	return result.RowsAffected, result.Error
+    // Delete both disabled and already used redemption codes
+    result := DB.Where("status IN ?", []int{common.RedemptionCodeStatusDisabled, common.RedemptionCodeStatusUsed}).Delete(&Redemption{})
+    return result.RowsAffected, result.Error
 }

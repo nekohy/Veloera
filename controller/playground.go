@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package controller
 
 import (
@@ -58,12 +74,12 @@ func Playground(c *gin.Context) {
 		c.Set("group", group)
 	}
 	c.Set("token_name", "playground-"+group)
-	
+
 	// Handle model prefix for channel selection (similar to middleware/distributor.go)
 	originalModel := playgroundRequest.Model
 	modelToQuery := playgroundRequest.Model
 	var channel *model.Channel
-	
+
 	// Check if the model has a prefix that should be used for routing
 	modelPrefix := ""
 	for prefix := range middleware.GetPrefixChannels(group) {
@@ -74,7 +90,7 @@ func Playground(c *gin.Context) {
 			break
 		}
 	}
-	
+
 	// Select channel based on whether we found a prefix
 	if modelPrefix != "" {
 		// Use prefix-based channel selection
@@ -83,7 +99,7 @@ func Playground(c *gin.Context) {
 		// Use normal channel selection
 		channel, err = model.CacheGetRandomSatisfiedChannel(group, modelToQuery, 0)
 	}
-	
+
 	if err != nil {
 		message := fmt.Sprintf("当前分组 %s 下对于模型 %s 无可用渠道", group, originalModel)
 		openaiErr = service.OpenAIErrorWrapperLocal(errors.New(message), "get_playground_channel_failed", http.StatusInternalServerError)

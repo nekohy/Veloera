@@ -1,12 +1,31 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package helper
 
 import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/http"
+	"time"
+
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
-	"net/http"
+
 	"veloera/common"
 	"veloera/dto"
 )
@@ -71,6 +90,33 @@ func PingData(c *gin.Context) error {
 		return errors.New("streaming error: flusher not found")
 	}
 	return nil
+}
+
+func WaitData(c *gin.Context) error {
+	c.Writer.Write([]byte(": WAITING FOR UPSTREAM \n\n"))
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	} else {
+		return errors.New("streaming error: flusher not found")
+	}
+	return nil
+}
+
+func StartWaitingHeartbeat(c *gin.Context, interval time.Duration) func() {
+	done := make(chan struct{})
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-done:
+				return
+			case <-ticker.C:
+				_ = WaitData(c)
+			}
+		}
+	}()
+	return func() { close(done) }
 }
 
 func ObjectData(c *gin.Context, object interface{}) error {

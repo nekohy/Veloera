@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package vertex
 
 import (
@@ -85,21 +101,21 @@ func (a *Adaptor) GetRequestURL(info *relaycommon.RelayInfo) (string, error) {
 			suffix = "generateContent"
 		}
 		if region == "global" {
-		    return fmt.Sprintf(
-		        "https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/google/models/%s:%s",
-		        adc.ProjectID,
-		        info.UpstreamModelName,
-		        suffix,
-		    ), nil
+			return fmt.Sprintf(
+				"https://aiplatform.googleapis.com/v1/projects/%s/locations/global/publishers/google/models/%s:%s",
+				adc.ProjectID,
+				info.UpstreamModelName,
+				suffix,
+			), nil
 		} else {
-		    return fmt.Sprintf(
-		        "https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:%s",
-		        region,
-		        adc.ProjectID,
-		        region,
-		        info.UpstreamModelName,
-		        suffix,
-		    ), nil
+			return fmt.Sprintf(
+				"https://%s-aiplatform.googleapis.com/v1/projects/%s/locations/%s/publishers/google/models/%s:%s",
+				region,
+				adc.ProjectID,
+				region,
+				info.UpstreamModelName,
+				suffix,
+			), nil
 		}
 	} else if a.RequestMode == RequestModeClaude {
 		if info.IsStream {

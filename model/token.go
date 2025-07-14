@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package model
 
 import (
@@ -21,6 +37,10 @@ type Token struct {
 	ExpiredTime        int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
 	RemainQuota        int            `json:"remain_quota" gorm:"default:0"`
 	UnlimitedQuota     bool           `json:"unlimited_quota" gorm:"default:false"`
+	RateLimitEnabled   bool           `json:"rate_limit_enabled" gorm:"default:false"`
+	RateLimitPeriod    int            `json:"rate_limit_period" gorm:"default:60"`
+	RateLimitCount     int            `json:"rate_limit_count" gorm:"default:1000"`
+	RateLimitSuccess   int            `json:"rate_limit_success" gorm:"default:10"`
 	ModelLimitsEnabled bool           `json:"model_limits_enabled" gorm:"default:false"`
 	ModelLimits        string         `json:"model_limits" gorm:"type:varchar(1024);default:''"`
 	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
@@ -184,6 +204,7 @@ func (token *Token) Update() (err error) {
 		}
 	}()
 	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
+		"rate_limit_enabled", "rate_limit_period", "rate_limit_count", "rate_limit_success",
 		"model_limits_enabled", "model_limits", "allow_ips", "group").Updates(token).Error
 	return err
 }

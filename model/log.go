@@ -1,3 +1,19 @@
+// Copyright (c) 2025 Tethys Plex
+//
+// This file is part of Veloera.
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
 package model
 
 import (
@@ -40,7 +56,8 @@ const (
 	LogTypeConsume
 	LogTypeManage
 	LogTypeSystem
-	LogTypeCheckIn // 添加签到日志类型
+	LogTypeCheckIn
+	LogTypeError
 )
 
 func formatUserLogs(logs []*Log) {
@@ -89,6 +106,35 @@ func RecordLog(userId int, logType int, content string) {
 	err := LOG_DB.Create(log).Error
 	if err != nil {
 		common.SysError("failed to record log: " + err.Error())
+	}
+}
+
+func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
+	isStream bool, group string, other map[string]interface{}) {
+	common.LogInfo(c, fmt.Sprintf("record error log: userId=%d, channelId=%d, modelName=%s, tokenName=%s, content=%s", userId, channelId, modelName, tokenName, content))
+	username := c.GetString("username")
+	otherStr := common.MapToJsonStr(other)
+	log := &Log{
+		UserId:           userId,
+		Username:         username,
+		CreatedAt:        common.GetTimestamp(),
+		Type:             LogTypeError,
+		Content:          content,
+		PromptTokens:     0,
+		CompletionTokens: 0,
+		TokenName:        tokenName,
+		ModelName:        modelName,
+		Quota:            0,
+		ChannelId:        channelId,
+		TokenId:          tokenId,
+		UseTime:          useTimeSeconds,
+		IsStream:         isStream,
+		Group:            group,
+		Other:            otherStr,
+	}
+	err := LOG_DB.Create(log).Error
+	if err != nil {
+		common.LogError(c, "failed to record log: "+err.Error())
 	}
 }
 

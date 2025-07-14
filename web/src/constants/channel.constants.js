@@ -1,3 +1,21 @@
+/*
+Copyright (c) 2025 Tethys Plex
+
+This file is part of Veloera.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+*/
 export const CHANNEL_OPTIONS = [
   { value: 1, color: 'green', label: 'OpenAI' },
   {
@@ -86,6 +104,7 @@ export const CHANNEL_OPTIONS = [
   },
   { value: 25, color: 'green', label: 'Moonshot' },
   { value: 20, color: 'green', label: 'OpenRouter' },
+  { value: 49, color: 'green', label: 'GitHub Models' },
   { value: 19, color: 'blue', label: '360 智脑' },
   { value: 23, color: 'teal', label: '腾讯混元' },
   { value: 31, color: 'green', label: '零一万物' },
